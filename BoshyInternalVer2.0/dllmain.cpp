@@ -53,20 +53,22 @@ BOOL __cdecl hFrameFunc(int a, int b) {
 }
 
 
-typedef BOOL(__cdecl* CharacterFunction) ();
+//typedef BOOL(__cdecl* CharacterFunction) ();
 
 //найти перепись персонажа получше)))))))) (check naked)
 
-CharacterFunction CharacterFuncGateway;
+//CharacterFunction CharacterFuncGateway;
+//DWORD jmpBackCharacterFunc;
+//void __cdecl hCharacterFunc(){
+//    __asm {
+//        mov edx, [ecx+0x08]
+//        mov [esi+0x08], edx
+//        jmp [jmpBackCharacterFunc]
+//    }
+//}
 
-BOOL __cdecl hCharacterFunc() {
 
-    return CharacterFuncGateway();
-}
-
-typedef BOOL(__cdecl* OneHitFunction)();
-
-OneHitFunction OneHitFunctionGateway;
+//OneHitFunction OneHitFunctionGateway;
 //cmp dword ptr[eax + 0x08], 1
 //jle exit
 //mov ecx, 0
@@ -143,6 +145,8 @@ DWORD WINAPI HackThread(HMODULE hModule) {
     memcpy(OneHitBackBytes, (BYTE*)(modulebase + 0x125F2), 7);
    Detour32((BYTE*)(modulebase+0x125F2), (BYTE*)hOneHitFunction, 7);
     jmpBackAddy = modulebase + 0x125F2 + 7;
+    /*jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;
+    Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hOneHitFunction, 6);*/
     INPUT ip;//дл€ имитировани€ нажати€ на кнопку заполн€ютс€ пол€(я не помню че они значат, кроме wVK - код кнопки))))
     ip.type = INPUT_KEYBOARD;
     ip.ki.wScan = 0;
