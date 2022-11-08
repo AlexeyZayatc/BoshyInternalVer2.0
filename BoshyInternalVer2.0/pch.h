@@ -7,6 +7,7 @@
 #ifndef PCH_H
 #define PCH_H
 
+#define NOMINMAX
 // add headers that you want to pre-compile here
 #include "framework.h"
 #define _CRT_SECURE_NO_WARNINGS
@@ -14,4 +15,5 @@
 #include <cstdint>
 #include "memory.h"
 #include "display.h"
+#include <limits>
 #endif //PCH_H
