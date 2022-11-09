@@ -1,45 +1,55 @@
-// dllmain.cpp : Defines the entry point for the DLL application.
+// THANKS GUIDEDHACKING FOR GUIDES AND INJECTOR <3
 #include "pch.h"
 #include "Hook.h"
 std::uintptr_t modulebase = reinterpret_cast<std::uintptr_t>(GetModuleHandle(0));
-bool bGod = false, bAutofire = false, bOnehit = false;
-bool CharacterEnabled = true;
-bool OneHitenabled = true;
+bool bGod = false, bAutofire = false; //switches for godmod and autofire
+bool CharacterEnabled = true; // switch for character selection function
+bool OneHitenabled = true; // switch for onehit function
 
-std::uintptr_t fps_addr = FindDMAAddy(modulebase + 0x59A94, { 0x78 }); //считывание памяти, получение адреса где хранится фпс
-std::uintptr_t character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 });//получение адреса где хранится айди текущего персонажа
+std::uintptr_t fps_addr = FindDMAAddy(modulebase + 0x59A94, { 0x78 }); //getting address for ingame fps
+std::uintptr_t character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 });//getting ingame address for character id
 
-DWORD OFFSET_GODMOD = 0x48195; //offset в памяти на инструкцию (которую нужно перезаписать чтобы получить бессмертие)
-DWORD OFFSET_CHARACTER = 0x4911;
-BYTE OneHitBackBytes[7]{ 0 };
-BYTE CharacterBackBytes[6]{ 0 };
+DWORD OFFSET_GODMOD = 0x48195; //offset in memory for bytes in function to make god mode
+DWORD OFFSET_CHARACTER = 0x4911;//offset in memory for start bytes of function that rewrites character id
+BYTE OneHitBackBytes[7]{ 0 }; //backup bytes for onehit func
+BYTE CharacterBackBytes[6]{ 0 }; //backup bytes for character func
 
-int character_id;
+int character_id; //variable for character id
 
-int curFPS ;
+int curFPS ; //variable for ingame fps
 
+//defining the type of function that is called every frame
+//ABOUT CALLING CONVENTIONS (SOURCE : https://en.wikibooks.org/wiki/X86_Disassembly/Calling_Conventions )
+//Calling conventions are a standardized method for functions to be implemented and called by the machine.
+//A calling convention specifies the method that a compiler sets up to access a subroutine.
+//__cdecl - arguments pushed from right to left
+// CALLING function cleans the stack
+//two arguments were obtained by brute-force
 typedef BOOL(__cdecl* FrameFunction) (int a, int b);
 
+//declaring gateway for framefunction (it will lead us to bytes that we overwrote by jump)
 FrameFunction FrameFuncGateway;
-FrameFunction oFrameFunc;
-
+//hook frame func (those instructions will be executed every frame, 50fps = 50 times per second)
 BOOL __cdecl hFrameFunc(int a, int b) {
-
-    
-    if (GetAsyncKeyState(0x41) )//"A"
+    if (GetAsyncKeyState(0x41) )//Check if button "A" is pressed
     {
-        bGod = !bGod;
-       display(bAutofire, bGod, curFPS,OneHitenabled,CharacterEnabled);
-        if (bGod) { //0xE9
-            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xE4\x89\x88\x1C\x01\x00\x00", 8); //изменение байтов ассемблера
+        bGod = !bGod; //toggling godmod
+       display(bAutofire, bGod, curFPS,OneHitenabled,CharacterEnabled); //changing console output
+        if (bGod) { 
+            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xE4\x89\x88\x1C\x01\x00\x00", 8); //changing bytes to be immortal
+            //actully game will think you are dead(?)
+            //while active you can't use teleports
+            //known bugs:
+            //ryu's car when hit ground activates too many times
+            //solgryn's platforms after phase 1 is not going down while godmod is activated
         }
         else {
-            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//возвращение исходных
+            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//returning backup bytes
         }
-        Sleep(100);
+        Sleep(100);//prevents accidental toggle
     }
     if (GetAsyncKeyState(VK_OEM_COMMA) ) {
-        if ((curFPS - 5) >= 10) {
+        if ((curFPS - 5) >= 10) { //game can crash if fps become lower 
             curFPS -= 5;
             display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
@@ -55,21 +65,21 @@ BOOL __cdecl hFrameFunc(int a, int b) {
     return FrameFuncGateway(a,b);
 }
 
-DWORD jmpBackCharacterFunc;
-int CharacterCheck;
+DWORD jmpBackCharacterFunc;//pointer to original function bytes (right after jump)
+int CharacterCheck;//int to check register value to be valid
 void __declspec(naked) hCharacterFunc(){
     __asm {
         mov edx, [ecx + 0x08]
         mov CharacterCheck, edx
     }
-    if (CharacterCheck <= 10) {
+    if (CharacterCheck <= 10) {//if function doesn't overwrite character id we do nothing
         __asm {
             mov edx, [ecx + 0x08]
             mov[esi + 0x08], edx
             jmp [jmpBackCharacterFunc]
         }
     }
-    else {
+    else {//if function is trying to overwrite character id we change it to character id that we want
         __asm {
             mov edx, character_id
             mov [esi+0x08],edx
@@ -78,27 +88,28 @@ void __declspec(naked) hCharacterFunc(){
     }
 }
 
-DWORD jmpBackAddy;
-int check=0;
+DWORD jmpBackAddy;//pointer to original function bytes (right after jump)
+int check=0;//int to check register value
 void __declspec(naked) hOneHitFunction() {
     
     __asm {
         mov ebx, [esp + 0x08]
         mov check, ebx
     }
-    if (check == 1) {
+    if (check == 1) {//if function is not interacts with boss hp we do nothing
         __asm{
             mov ecx, [esp + 0x18]
             mov[eax + 0x08], ecx
             jmp[jmpBackAddy]
 	    }
     }
-    else {
+    else {//if it does, then...
         __asm {
             mov ebx, [eax+0x08]
             mov check, ebx
         }
-        if (check > 1) {
+        if (check > 1) { // if boss hp is more than one we overwrite it with 0
+            //if we constantly overwrite it with 0 boss is not dying (at least he would not when i was testing it with cheat engine)
             __asm {
                 mov ecx, 0
                 mov [eax+0x08], ecx
@@ -110,7 +121,7 @@ void __declspec(naked) hOneHitFunction() {
     }
 
 }
-
+//Character hook toggle func, rewrites bytes with jump if activates, rewrites with backup bytes if deactivate
 void CharacterHookToggle() {
     if (!CharacterEnabled)
     {
@@ -123,7 +134,7 @@ void CharacterHookToggle() {
         CharacterEnabled = false;
     }
 }
-
+//same as character hook toggle
 void OneHitToggle() {
     if (!OneHitenabled)
     {
@@ -136,7 +147,7 @@ void OneHitToggle() {
         OneHitenabled = false;
     }
 }
-
+//dll thread
 DWORD WINAPI HackThread(HMODULE hModule) {
     if (!AllocConsole())
         MessageBox(NULL, L"The console window was not created", NULL, MB_ICONEXCLAMATION);
@@ -147,62 +158,62 @@ DWORD WINAPI HackThread(HMODULE hModule) {
     freopen_s(&fp, "CONIN$", "r", stdin);
 
     std::cout.clear();
+    //console stuff...
 
 
+     character_id = 84; //84 - dark boshy ID
 
-     character_id = 84;
+     curFPS = *(int*)fps_addr; //cast fps address to int pointer and dereference it
 
-     curFPS = *(int*)fps_addr;
-
-
+     //hook class for frame hook 
     Hook FrameHook((BYTE*)(modulebase + 0x48110), (BYTE*)hFrameFunc, (BYTE*)&FrameFuncGateway, 5);
     FrameHook.Enable();
 
-    memcpy(OneHitBackBytes, (BYTE*)(modulebase + 0x125F2), 7);
-   Detour32((BYTE*)(modulebase+0x125F2), (BYTE*)hOneHitFunction, 7);
-    jmpBackAddy = modulebase + 0x125F2 + 7;
-    memcpy(CharacterBackBytes, (BYTE*)(modulebase + OFFSET_CHARACTER), 6);
-    jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;
-    Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, 6);
-    INPUT ip;//для имитирования нажатия на кнопку заполняются поля(Я не помню че они значат, кроме wVK - код кнопки))))
-    ip.type = INPUT_KEYBOARD;
-    ip.ki.wScan = 0;
-    ip.ki.time = 0;
-    ip.ki.dwExtraInfo = 0;
-    ip.ki.wVk = 0x58;
+    memcpy(OneHitBackBytes, (BYTE*)(modulebase + 0x125F2), 7);//copying backup bytes for onehit func
+   Detour32((BYTE*)(modulebase+0x125F2), (BYTE*)hOneHitFunction, 7);//hooking onehit function
+    jmpBackAddy = modulebase + 0x125F2 + 7;//calculating jmp back address
+    memcpy(CharacterBackBytes, (BYTE*)(modulebase + OFFSET_CHARACTER), 6);//copying backup bytes for character func
+    jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;//calculating jmp back address
+    Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, 6); //hooking character func
+    INPUT ip{};//input for imitating keyboard click
+    ip.type = INPUT_KEYBOARD; //stuff...
+    ip.ki.wScan = 0;//stuff...
+    ip.ki.time = 0;//stuff...
+    ip.ki.dwExtraInfo = 0;//stuff
+    ip.ki.wVk = 0x58;//just copied this shit, wVk - key code (0x58 -> X)
     display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
     while (true)
     {
         if (bAutofire) {
             //key press
             ip.ki.dwFlags = 0;
-            SendInput(1, &ip, sizeof(INPUT));
-            Sleep(10);
+            SendInput(1, &ip, sizeof(INPUT)); 
+            Sleep(10);//little wait for button press
             ip.ki.dwFlags = KEYEVENTF_KEYUP;
             SendInput(1, &ip, sizeof(INPUT));
             Sleep(10);
         }
-        if (GetAsyncKeyState(0x43))//"C" 
+        if (GetAsyncKeyState(0x43))//Check for button "C" 
         {
             bAutofire = !bAutofire;
              display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
         }
-        if (GetAsyncKeyState(VK_DELETE))
-        {
+        if (GetAsyncKeyState(VK_DELETE))//Check for button "DELETE" 
+        {//uninjects dll and returning all original bytes
             FrameHook.Disable();
-            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//возвращение исходных
+            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);
             patch((BYTE*)(modulebase + 0x125F2), OneHitBackBytes, 7);
-            patch((BYTE*)(modulebase + OFFSET_CHARACTER), CharacterBackBytes, 6);//возвращение исходных
+            patch((BYTE*)(modulebase + OFFSET_CHARACTER), CharacterBackBytes, 6);
             break;
         }
-        if (GetAsyncKeyState(0x46)) //"F"
+        if (GetAsyncKeyState(0x46)) //Check for button "F"
         {
             FrameHook.Toggle();
-            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//возвращение исходных
+            patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//returning original bytes of godmod func
             Sleep(100);
         }
-        if (GetAsyncKeyState(0x44)) //"D"
+        if (GetAsyncKeyState(0x44)) //Check for button "D"
         {
             std::cout << "\nEnter character number: ";
             int temp_char_id;
@@ -213,36 +224,37 @@ DWORD WINAPI HackThread(HMODULE hModule) {
             }
             else
             {
-                if (temp_char_id >= 1 && temp_char_id <= 36) {
-                    character_id = temp_char_id * 4 + 8;
+                if (temp_char_id >= 1 && temp_char_id <= 36) { //maximum 36 characters
+                    //game has 35, one is secret-yellow pedobear
+                    character_id = temp_char_id * 4 + 8; //formula calclucates character ingame id
                     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                     Sleep(100);
                 }
             }
         }
-        if (GetAsyncKeyState(0x45)) //"E"
+        if (GetAsyncKeyState(0x45)) //Check for button "E" - refresh character addr if save is changed/something wrong
         {
             character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 });
             Sleep(100);
         }
-        if (GetAsyncKeyState(0x57))//"W" 
+        if (GetAsyncKeyState(0x57))//Check for button "W" - toggling character hook
         {
             CharacterHookToggle();
             display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
            Sleep(100);
         }
-        if (GetAsyncKeyState(0x56)) //"V"?
+        if (GetAsyncKeyState(0x56)) //Check for button "V" - toggling onehit hook
         {
             OneHitToggle();
             display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
         }
-        *(int*)fps_addr = curFPS;
-        Sleep(10);
+        *(int*)fps_addr = curFPS;//overwrites game fps
+        Sleep(10);//cpu said thanks
     }
-    fclose(fp);
-    FreeConsole();
-    FreeLibraryAndExitThread(hModule, 0);
+    fclose(fp);//closing output
+    FreeConsole();//^
+    FreeLibraryAndExitThread(hModule, 0); //uninject
     return 0;
 }
 
