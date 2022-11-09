@@ -19,7 +19,6 @@ std::uintptr_t FindDMAAddy(std::uintptr_t ptr, std::vector<unsigned int> offsets
 		try {
 			addr = *(uintptr_t*)addr; //dereference pointer (gets address that pointer points to)
 			addr += offsets[i]; //adding offset and so on...
-			throw(";(");
 		}
 		catch(const char* exception) {
 			std::cout << "\n EXCEPTION WHILE FINDING MULTILEVEL POINTER : " << exception << std::endl;
