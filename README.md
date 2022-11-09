@@ -20,5 +20,6 @@ F - toggling framehook(used for godmod)
 
 DELETE - uninject
 
-IDS:
-![image](https://user-images.githubusercontent.com/90666473/176891615-f1638db7-f617-49a0-a6bc-ce4c597c7079.png)
+IDs:
+![image](https://user-images.githubusercontent.com/90666473/200830382-27f38b39-acb6-4d57-b6e1-913af19946d8.png)
+
