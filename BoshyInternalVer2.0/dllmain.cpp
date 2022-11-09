@@ -2,13 +2,17 @@
 #include "pch.h"
 #include "Hook.h"
 std::uintptr_t modulebase = reinterpret_cast<std::uintptr_t>(GetModuleHandle(0));
-bool bGod = false, bAutofire = false, bOnehit = false, patched = false;
+bool bGod = false, bAutofire = false, bOnehit = false;
+bool CharacterEnabled = true;
+bool OneHitenabled = true;
 
 std::uintptr_t fps_addr = FindDMAAddy(modulebase + 0x59A94, { 0x78 }); //считывание памяти, получение адреса где хранится фпс
 std::uintptr_t character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 });//получение адреса где хранится айди текущего персонажа
 
 DWORD OFFSET_GODMOD = 0x48195; //offset в памяти на инструкцию (которую нужно перезаписать чтобы получить бессмертие)
 DWORD OFFSET_CHARACTER = 0x4911;
+BYTE OneHitBackBytes[7]{ 0 };
+BYTE CharacterBackBytes[6]{ 0 };
 
 int character_id;
 
@@ -25,7 +29,7 @@ BOOL __cdecl hFrameFunc(int a, int b) {
     if (GetAsyncKeyState(0x41) )//"A"
     {
         bGod = !bGod;
-       display(bAutofire, bGod, curFPS);
+       display(bAutofire, bGod, curFPS,OneHitenabled,CharacterEnabled);
         if (bGod) { //0xE9
             patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xE4\x89\x88\x1C\x01\x00\x00", 8); //изменение байтов ассемблера
         }
@@ -37,51 +41,44 @@ BOOL __cdecl hFrameFunc(int a, int b) {
     if (GetAsyncKeyState(VK_OEM_COMMA) ) {
         if ((curFPS - 5) >= 10) {
             curFPS -= 5;
-            display(bAutofire, bGod, curFPS);
+            display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
         }
     }
     if (GetAsyncKeyState(VK_OEM_PERIOD) ) {
         if ((curFPS + 5) < 130) {
             curFPS += 5;
-            display(bAutofire, bGod, curFPS);
+            display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
         }
     }
-    if (patched) *(int*)character_addr = character_id;
     return FrameFuncGateway(a,b);
 }
 
+DWORD jmpBackCharacterFunc;
+int CharacterCheck;
+void __declspec(naked) hCharacterFunc(){
+    __asm {
+        mov edx, [ecx + 0x08]
+        mov CharacterCheck, edx
+    }
+    if (CharacterCheck <= 10) {
+        __asm {
+            mov edx, [ecx + 0x08]
+            mov[esi + 0x08], edx
+            jmp [jmpBackCharacterFunc]
+        }
+    }
+    else {
+        __asm {
+            mov edx, character_id
+            mov [esi+0x08],edx
+            jmp [jmpBackCharacterFunc]
+        }
+    }
+}
 
-//typedef BOOL(__cdecl* CharacterFunction) ();
-
-//найти перепись персонажа получше)))))))) (check naked)
-
-//CharacterFunction CharacterFuncGateway;
-//DWORD jmpBackCharacterFunc;
-//void __cdecl hCharacterFunc(){
-//    __asm {
-//        mov edx, [ecx+0x08]
-//        mov [esi+0x08], edx
-//        jmp [jmpBackCharacterFunc]
-//    }
-//}
-
-
-//OneHitFunction OneHitFunctionGateway;
-//cmp dword ptr[eax + 0x08], 1
-//jle exit
-//mov ecx, 0
-//mov[eax + 0x08], ecx
 DWORD jmpBackAddy;
-        //cmp dword ptr [esp + 0x08], 1
-        //je originalcode
-
-        //jmp exit
-
-        //originalcode:
-          //      exit:
-        //jmp [jmpBackAddy]
 int check=0;
 void __declspec(naked) hOneHitFunction() {
     
@@ -114,6 +111,31 @@ void __declspec(naked) hOneHitFunction() {
 
 }
 
+void CharacterHookToggle() {
+    if (!CharacterEnabled)
+    {
+        Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, 6);
+        CharacterEnabled = true;
+    }
+    else
+    {
+        patch((BYTE*)(modulebase + OFFSET_CHARACTER), CharacterBackBytes, 6);//возвращение исходных
+        CharacterEnabled = false;
+    }
+}
+
+void OneHitToggle() {
+    if (!OneHitenabled)
+    {
+        Detour32((BYTE*)(modulebase + 0x125F2), (BYTE*)hOneHitFunction, 7);
+        OneHitenabled = true;
+    }
+    else
+    {
+        patch((BYTE*)(modulebase + 0x125F2), OneHitBackBytes, 7);
+        OneHitenabled = false;
+    }
+}
 
 DWORD WINAPI HackThread(HMODULE hModule) {
     if (!AllocConsole())
@@ -128,36 +150,31 @@ DWORD WINAPI HackThread(HMODULE hModule) {
 
 
 
-     character_id = *(int*)character_addr;
+     character_id = 84;
 
      curFPS = *(int*)fps_addr;
-   
-  //  std::cout << std::hex << "modulebase: " << modulebase;
-   // oFrameFunc = (FrameFunction)(modulebase + 0x48110);
-   // oFrameFunc = (FrameFunction)TrampHook32((BYTE*)oFrameFunc, (BYTE*)hFrameFunc, 5);
+
 
     Hook FrameHook((BYTE*)(modulebase + 0x48110), (BYTE*)hFrameFunc, (BYTE*)&FrameFuncGateway, 5);
     FrameHook.Enable();
-    //Hook CharacterHook((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, (BYTE*)&CharacterFuncGateway, 6);
-    //CharacterHook.Enable();
-    // memset(CharacterFuncGateway, '\x90', 3);z
-    BYTE OneHitBackBytes[7]{ 0 };
+
     memcpy(OneHitBackBytes, (BYTE*)(modulebase + 0x125F2), 7);
    Detour32((BYTE*)(modulebase+0x125F2), (BYTE*)hOneHitFunction, 7);
     jmpBackAddy = modulebase + 0x125F2 + 7;
-    /*jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;
-    Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hOneHitFunction, 6);*/
+    memcpy(CharacterBackBytes, (BYTE*)(modulebase + OFFSET_CHARACTER), 6);
+    jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;
+    Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, 6);
     INPUT ip;//для имитирования нажатия на кнопку заполняются поля(Я не помню че они значат, кроме wVK - код кнопки))))
     ip.type = INPUT_KEYBOARD;
     ip.ki.wScan = 0;
     ip.ki.time = 0;
     ip.ki.dwExtraInfo = 0;
     ip.ki.wVk = 0x58;
-    display(bAutofire, bGod, curFPS);
+    display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
     while (true)
     {
         if (bAutofire) {
-            //нажатие клавиши
+            //key press
             ip.ki.dwFlags = 0;
             SendInput(1, &ip, sizeof(INPUT));
             Sleep(10);
@@ -168,15 +185,15 @@ DWORD WINAPI HackThread(HMODULE hModule) {
         if (GetAsyncKeyState(0x43))//"C" 
         {
             bAutofire = !bAutofire;
-             display(bAutofire, bGod, curFPS);
+             display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
         }
-        if (GetAsyncKeyState(VK_END))
+        if (GetAsyncKeyState(VK_DELETE))
         {
             FrameHook.Disable();
             patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//возвращение исходных
             patch((BYTE*)(modulebase + 0x125F2), OneHitBackBytes, 7);
-           // patch((BYTE*)(modulebase + 0x4911), (BYTE*)"\x8B\x51\x08\x89\x56\x08", 6);//возвращение исходных
+            patch((BYTE*)(modulebase + OFFSET_CHARACTER), CharacterBackBytes, 6);//возвращение исходных
             break;
         }
         if (GetAsyncKeyState(0x46)) //"F"
@@ -187,10 +204,6 @@ DWORD WINAPI HackThread(HMODULE hModule) {
         }
         if (GetAsyncKeyState(0x44)) //"D"
         {
-            if (!patched) {
-                patch((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)"\x90\x90\x90\x90\x90\x90", 6);
-                patched = true;
-            }
             std::cout << "\nEnter character number: ";
             int temp_char_id;
             std::cin >> temp_char_id;
@@ -209,15 +222,19 @@ DWORD WINAPI HackThread(HMODULE hModule) {
         }
         if (GetAsyncKeyState(0x45)) //"E"
         {
-            character_addr = FindDMAAddy( modulebase + 0x59AB8, { 0x0,0x1C4,0x420,0x30,0x84,0x470,0x58 });
+            character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 });
             Sleep(100);
         }
         if (GetAsyncKeyState(0x57))//"W" 
         {
-            if (patched) {
-                patch((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)"\x8B\x51\x08\x89\x56\x08", 6);
-                patched = false;
-            }
+            CharacterHookToggle();
+            display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
+           Sleep(100);
+        }
+        if (GetAsyncKeyState(0x56)) //"V"?
+        {
+            OneHitToggle();
+            display(bAutofire, bGod, curFPS, OneHitenabled, CharacterEnabled);
             Sleep(100);
         }
         *(int*)fps_addr = curFPS;

@@ -28,10 +28,12 @@ std::uintptr_t FindDMAAddy(std::uintptr_t ptr, std::vector<unsigned int> offsets
 }
 
 
-const void display(const bool& baf, const bool& bgm, int fps) noexcept {
+const void display(const bool& baf, const bool& bgm, int fps, const bool& oh, const bool& ch) noexcept {
 	system("cls");
 	std::string status[2]{ "DISABLED","ENABLED" };
 	std::cout << "Auto-fire is: " << status[baf]
 		<< "\nGod-mode is: " << status[bgm]
-		<< "\nCurrent max_fps: " << fps;
+		<< "\nCurrent max_fps: " << fps
+		<< "\nOneHitStatus: " << status[oh]
+		<< "\nCharacterStatus: " << status[ch];
 }
