@@ -6,3 +6,5 @@
 #include <Tlhelp32.h>
 #include "memory.h"
 #include "display.h"
+
+// Кім оқиды - анау киска.
