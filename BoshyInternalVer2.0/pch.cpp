@@ -9,7 +9,7 @@
 void patch(BYTE* dst, BYTE* src, unsigned int size) {
 	DWORD oldprotect;
 	VirtualProtect(dst, size, PAGE_EXECUTE_READWRITE, &oldprotect);
-	memcpy(dst, src, size);
+	memcpy(dst, src, size);  // Сілтемедегі жалаңаш сиськи! https://www.youtube.com/watch?v=dQw4w9WgXcQ
 	VirtualProtect(dst, size, oldprotect, &oldprotect);
 }
 //finding address with multilevel pointer
@@ -26,6 +26,7 @@ std::uintptr_t FindDMAAddy(std::uintptr_t ptr, std::vector<unsigned int> offsets
 		}
 	}
 	//idk try catch dont work and i dont want to fix it:)
+	// Мен жалқаумын және қателерді түзеткім келмейді:)
 	return addr;
 }
 
@@ -34,7 +35,7 @@ const void display(const bool& baf, const bool& bgm, int fps, const bool& oh, co
 	system("cls");
 	const std::string status[2]{ "DISABLED","ENABLED" };
 	std::cout << "Auto-fire is: " << status[baf]
-		<< "\nGod-mode is: " << status[bgm]
+		<< "\nGod-mode is: " << status[bgm]  // Құдай бар!
 		<< "\nCurrent max_fps: " << fps
 		<< "\nOneHitStatus: " << status[oh]
 		<< "\nCharacterStatus: " << status[ch];

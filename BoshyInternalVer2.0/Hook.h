@@ -2,6 +2,8 @@
 #include <Windows.h>
 #include "memory.h"
 
+// Не болып жатқанын түсінбейсіз бе? Түсіндіруді қараңыз: https://www.youtube.com/watch?v=wZIaj0FDIuI
+
 bool Detour32(BYTE* src, BYTE* dst, const int len);
 
 BYTE* TrampHook32(BYTE* src, BYTE* dst, const int len);
