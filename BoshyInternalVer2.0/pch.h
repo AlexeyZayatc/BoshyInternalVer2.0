@@ -15,5 +15,6 @@
 #include <cstdint>
 #include "memory.h"
 #include "display.h"
+#include <format>
 #include <limits>
 #endif //PCH_H

@@ -31,12 +31,17 @@ std::uintptr_t FindDMAAddy(std::uintptr_t ptr, std::vector<unsigned int> offsets
 }
 
 
-const void display(const bool& baf, const bool& bgm, int fps, const bool& oh, const bool& ch) noexcept {
+const void display(const CheatInfo& ci) noexcept {
 	system("cls");
 	const std::string status[2]{ "DISABLED","ENABLED" };
-	std::cout << "Auto-fire is: " << status[baf]
-		<< "\nGod-mode is: " << status[bgm]  // Құдай бар!
-		<< "\nCurrent max_fps: " << fps
-		<< "\nOneHitStatus: " << status[oh]
-		<< "\nCharacterStatus: " << status[ch];
+	for (auto& [name, val] : ci.boolStatuses) {
+		std::cout << std::format("{} : {}\n", name, status[*(*val)]);// Құдай бар!
+	}
+	for (const auto& [name, val] : ci.intStatuses) {
+		int valToPrint = *(*val);
+		if (name == "Character id (D)")
+			valToPrint = valToPrint/4 -2; //represent id like in excel table.
+		std::cout << std::format("{} : {}\n", name, valToPrint);// Құдай бар!
+	}
+	std::cout << "To refresh character addr: E\n";
 }
