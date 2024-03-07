@@ -82,6 +82,7 @@ void __declspec(naked) hCharacterFunc(){
     else {//if function is trying to overwrite character id we change it to character id that we want
         __asm {
             mov edx, character_id
+            mov [ecx+0x08], edx
             mov [esi+0x08],edx
             jmp [jmpBackCharacterFunc]
         }
