@@ -13,15 +13,14 @@ void patch(BYTE* dst, BYTE* src, unsigned int size) {
 	VirtualProtect(dst, size, oldprotect, &oldprotect);
 }
 //finding address with multilevel pointer
-std::uintptr_t FindDMAAddy(std::uintptr_t ptr, std::vector<unsigned int> offsets) {
+std::uintptr_t FindDMAAddy(std::uintptr_t ptr, std::vector<unsigned int> offsets)  {
 	std::uintptr_t addr = ptr;
 	for (unsigned int i = 0; i < offsets.size(); i++) {
 		try {
 			addr = *(uintptr_t*)addr; //dereference pointer (gets address that pointer points to)
-			addr += offsets[i]; //adding offset and so on...
+			addr += offsets[i]; //adding offset and so on...	
 		}
-		catch(const char* exception) {
-			std::cout << "\n EXCEPTION WHILE FINDING MULTILEVEL POINTER : " << exception << std::endl;
+		catch (...){
 			return 0;
 		}
 	}

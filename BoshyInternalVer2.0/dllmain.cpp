@@ -1,19 +1,24 @@
 // THANKS GUIDEDHACKING FOR GUIDES AND INJECTOR <3
 #include "pch.h"
 #include "Hook.h"
+
 std::uintptr_t modulebase = reinterpret_cast<std::uintptr_t>(GetModuleHandle(0));
+
 bool bGod = false, bAutofire = false; //switches for godmod and autofire
 bool CharacterEnabled = true; // switch for character selection function
 bool OneHitenabled = true; // switch for onehit function
 bool bFrameHook = true;
+bool bBulletLock = true;
 
 std::uintptr_t fps_addr = FindDMAAddy(modulebase + 0x59A94, { 0x78 }); //getting address for ingame fps
-std::uintptr_t character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 });//getting ingame address for character id
+std::uintptr_t character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,0x8,0x18,0x268,0x58 }); //getting ingame address for character id
 
 DWORD OFFSET_GODMOD = 0x48195; //offset in memory for bytes in function to make god mode
 DWORD OFFSET_CHARACTER = 0x4911;//offset in memory for start bytes of function that rewrites character id
+DWORD OFFSET_BULLETS = 0x1F63F;
 BYTE OneHitBackBytes[7]{ 0 }; //backup bytes for onehit func
 BYTE CharacterBackBytes[6]{ 0 }; //backup bytes for character func
+BYTE BulletBackBytes[5]{ 0 }; //backup bytes for bullet func
 
 int character_id; //variable for character id
 
@@ -50,6 +55,16 @@ BOOL __cdecl hFrameFunc(int a, int b) {
             patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);//returning backup bytes
         }
         Sleep(100);//prevents accidental toggle
+    }
+    if (GetAsyncKeyState(0x42)) {
+        bBulletLock = !bBulletLock;
+        display(cheatInfo);
+        Sleep(100);
+    }
+    if (bBulletLock) {
+       // bullet_addr = FindDMAAddy(modulebase + 0x59A9C, { 0x18,0x1D8,0x8D0, 0x38, 0xC, 0x1C, 0x1F8 });
+       // if (bullet_addr != 0)
+        //    *(int*)bullet_addr = 0;
     }
     if (GetAsyncKeyState(VK_OEM_COMMA) ) {
         if ((curFPS - 5) >= 10) { //game can crash if fps become lower 
@@ -125,6 +140,23 @@ void __declspec(naked) hOneHitFunction() {
     }
 
 }
+
+DWORD jmpBackBulletFunc;//pointer to original function bytes (right after jump)
+std::uintptr_t bulletCounterAddr;
+void __declspec(naked) hBulletFunc() {
+
+    __asm {
+        pop esi
+        inc eax
+        mov ebx, [ecx+0x10]
+        mov bulletCounterAddr, ebx
+    }
+    __asm {  // бірақ нақты тұжырымдар, әрине, мүмкіндігінше егжей-тегжейлі сипатталған.
+        jmp [jmpBackBulletFunc]
+    }
+
+}
+
 //Character hook toggle func, rewrites bytes with jump if activates, rewrites with backup bytes if deactivate
 void CharacterHookToggle() {
     if (!CharacterEnabled)
@@ -149,6 +181,19 @@ void OneHitToggle() {
     {
         patch((BYTE*)(modulebase + 0x125F2), OneHitBackBytes, 7);
         OneHitenabled = false;
+    }
+}
+
+void BulletHookToggle() {
+    if (!bBulletLock)
+    {
+        Detour32((BYTE*)(modulebase + OFFSET_BULLETS), (BYTE*)hBulletFunc, 5);
+        bBulletLock = true;
+    }
+    else
+    {
+        patch((BYTE*)(modulebase + OFFSET_BULLETS), BulletBackBytes, 5);//?????? ?????
+        bBulletLock = false;
     }
 }
 //dll thread
@@ -177,9 +222,16 @@ DWORD WINAPI HackThread(HMODULE hModule) {
     memcpy(OneHitBackBytes, (BYTE*)(modulebase + 0x125F2), 7);//copying backup bytes for onehit func
     Detour32((BYTE*)(modulebase+0x125F2), (BYTE*)hOneHitFunction, 7);//hooking onehit function
     jmpBackAddy = modulebase + 0x125F2 + 7;//calculating jmp back address
+
     memcpy(CharacterBackBytes, (BYTE*)(modulebase + OFFSET_CHARACTER), 6);//copying backup bytes for character func
     jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;//calculating jmp back address
     Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, 6); //hooking character func
+
+    //memcpy(BulletBackBytes, (BYTE*)(modulebase + OFFSET_BULLETS), 5);//copying backup bytes for character func
+    //jmpBackBulletFunc = (modulebase + OFFSET_BULLETS) + 5;//calculating jmp back address
+    //Detour32((BYTE*)(modulebase + OFFSET_BULLETS), (BYTE*)hBulletFunc, 5); //hooking character func
+
+
 
     INPUT ip{};//input for imitating keyboard click
     ip.type = INPUT_KEYBOARD; //stuff...
@@ -210,7 +262,7 @@ DWORD WINAPI HackThread(HMODULE hModule) {
         if (GetAsyncKeyState(0x43))//Check for button "C" 
         {
             bAutofire = !bAutofire;
-             display(cheatInfo);
+            display(cheatInfo);
             Sleep(100);
         }
         if (GetAsyncKeyState(VK_DELETE))//Check for button "DELETE" 
@@ -219,6 +271,7 @@ DWORD WINAPI HackThread(HMODULE hModule) {
             patch((BYTE*)(modulebase + OFFSET_GODMOD), (BYTE*)"\x39\xDD\x89\x88\x1C\x01\x00\x00", 8);
             patch((BYTE*)(modulebase + 0x125F2), OneHitBackBytes, 7);
             patch((BYTE*)(modulebase + OFFSET_CHARACTER), CharacterBackBytes, 6);
+            Sleep(100);
             break;
         }
         if (GetAsyncKeyState(0x46)) //Check for button "F"
