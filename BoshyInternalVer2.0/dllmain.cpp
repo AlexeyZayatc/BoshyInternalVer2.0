@@ -15,10 +15,9 @@ std::uintptr_t character_addr = FindDMAAddy(modulebase + 0x59A98, { 0x8D0,0x158,
 
 DWORD OFFSET_GODMOD = 0x48195; //offset in memory for bytes in function to make god mode
 DWORD OFFSET_CHARACTER = 0x4911;//offset in memory for start bytes of function that rewrites character id
-DWORD OFFSET_BULLETS = 0x1F63F;
+
 BYTE OneHitBackBytes[7]{ 0 }; //backup bytes for onehit func
-BYTE CharacterBackBytes[6]{ 0 }; //backup bytes for character func
-BYTE BulletBackBytes[5]{ 0 }; //backup bytes for bullet func
+BYTE CharacterBackBytes[6]{ 0 }; //backup bytes for character func\
 
 int character_id; //variable for character id
 
@@ -184,18 +183,6 @@ void OneHitToggle() {
     }
 }
 
-void BulletHookToggle() {
-    if (!bBulletLock)
-    {
-        Detour32((BYTE*)(modulebase + OFFSET_BULLETS), (BYTE*)hBulletFunc, 5);
-        bBulletLock = true;
-    }
-    else
-    {
-        patch((BYTE*)(modulebase + OFFSET_BULLETS), BulletBackBytes, 5);//?????? ?????
-        bBulletLock = false;
-    }
-}
 //dll thread
 DWORD WINAPI HackThread(HMODULE hModule) {
     if (!AllocConsole())
@@ -226,11 +213,6 @@ DWORD WINAPI HackThread(HMODULE hModule) {
     memcpy(CharacterBackBytes, (BYTE*)(modulebase + OFFSET_CHARACTER), 6);//copying backup bytes for character func
     jmpBackCharacterFunc = (modulebase + OFFSET_CHARACTER) + 6;//calculating jmp back address
     Detour32((BYTE*)(modulebase + OFFSET_CHARACTER), (BYTE*)hCharacterFunc, 6); //hooking character func
-
-    //memcpy(BulletBackBytes, (BYTE*)(modulebase + OFFSET_BULLETS), 5);//copying backup bytes for character func
-    //jmpBackBulletFunc = (modulebase + OFFSET_BULLETS) + 5;//calculating jmp back address
-    //Detour32((BYTE*)(modulebase + OFFSET_BULLETS), (BYTE*)hBulletFunc, 5); //hooking character func
-
 
 
     INPUT ip{};//input for imitating keyboard click
